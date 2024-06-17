@@ -9,7 +9,7 @@ const port = 4000;
 
 // middleware
 app.use(express.json());
-app.use(cors());
+app.use(cors({ origin: "https://razorpay-test-app-client.vercel.app" }));
 
 //* Available Route
 app.get("/", (req, res) => {
