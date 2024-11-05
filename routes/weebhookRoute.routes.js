@@ -3,6 +3,7 @@ import { Router } from "express";
 import bodyParser from "body-parser";
 import { Webhook } from "svix";
 import Users from "../models/Users.js";
+import crypto from "crypto";
 
 const webhookRouter = Router();
 
@@ -147,5 +148,49 @@ webhookRouter.post(
     });
   }
 );
+
+webhookRouter.post("/razorpay", bodyParser.json(), async (req, res) => {
+  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  const signature = req.headers["x-razorpay-signature"];
+  const body = req.body;
+
+  // Validate webhook signature
+  const hmac = crypto.createHmac("sha256", secret);
+  hmac.update(JSON.stringify(req.body));
+  const digest = hmac.digest("hex");
+
+  if (digest !== signature) {
+    return res.status(400).send("Invalid webhook signature");
+  }
+
+  const { event, payload } = body;
+
+//   console.log(body);
+  console.log(payload.subscription.entity);
+
+  try {
+    switch (event) {
+      case "subscription.created":
+        await handleSubscriptionActivation(payload.subscription);
+        break;
+      case "subscription.activated":
+        await handleSubscriptionActivation(payload.subscription);
+        break;
+      case "subscription.completed":
+        await handleSubscriptionCompletion(payload.subscription);
+        break;
+      case "payment.captured":
+        await handlePaymentCaptured(payload.payment);
+        break;
+      default:
+        console.log(`Unhandled event type: ${event}`);
+    }
+
+    res.status(200).send("Webhook received");
+  } catch (error) {
+    console.error("Error handling webhook:", error);
+    res.status(500).send("Server error");
+  }
+});
 
 export default webhookRouter;

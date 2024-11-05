@@ -2,23 +2,18 @@ import mongoose, { model } from "mongoose";
 const { Schema } = mongoose;
 
 const SubscriptionSchema = new Schema({
-  razorpay_order_id: {
+  _id: String,
+  plan: {
     type: String,
-    required: true,
   },
-  razorpay_payment_id: {
-    type: String,
-    required: true,
-  },
-  razorpay_signature: {
-    type: String,
-    required: true,
-  },
-  date: {
-    type: Date,
-    default: Date.now,
-  },
+  user: { type: mongoose.Types.ObjectId, ref: "User" },
+  customer_id: String,
+
+  createdAt: Date,
+  nextDueAt: Date,
+
+  status: String,
 });
 
-const Subscriptions = model("payment", SubscriptionSchema);
+const Subscriptions = model("Subscription", SubscriptionSchema);
 export default Subscriptions;
