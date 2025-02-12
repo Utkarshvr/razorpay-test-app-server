@@ -4,6 +4,7 @@ import bodyParser from "body-parser";
 import { Webhook } from "svix";
 import Users from "../models/Users.js";
 import crypto from "crypto";
+import Subscriptions from "../models/Subscription.js";
 
 const webhookRouter = Router();
 
@@ -165,26 +166,36 @@ webhookRouter.post("/razorpay", bodyParser.json(), async (req, res) => {
 
   const { event, payload } = body;
 
-//   console.log(body);
-  console.log(payload.subscription.entity);
+  // console.log(payload.subscription.entity);
 
   try {
-    switch (event) {
-      case "subscription.created":
-        await handleSubscriptionActivation(payload.subscription);
-        break;
-      case "subscription.activated":
-        await handleSubscriptionActivation(payload.subscription);
-        break;
-      case "subscription.completed":
-        await handleSubscriptionCompletion(payload.subscription);
-        break;
-      case "payment.captured":
-        await handlePaymentCaptured(payload.payment);
-        break;
-      default:
-        console.log(`Unhandled event type: ${event}`);
-    }
+    if (
+      [
+        "subscription.updated",
+        "subscription.authenticated",
+        "subscription.activated",
+        "subscription.charged",
+        "subscription.completed",
+        "subscription.pending",
+        "subscription.cancelled",
+        "subscription.paused",
+        "subscription.resumed",
+      ].includes(event)
+    ) {
+      console.log("Recieved webhook ✅", event);
+      const subscription = payload.subscription.entity;
+      const userId = subscription.notes?.userId; // Assuming userId is stored in Razorpay notes
+
+      if (!userId) {
+        console.error("User ID not found in subscription notes");
+        return res.status(400).send("User ID not found");
+      }
+
+      // Updating the user in MongoDB
+      await Subscriptions.findByIdAndUpdate(subscription.id, {
+        $set: { ...subscription },
+      });
+    } else console.log(`Unhandled event type: ${event}`);
 
     res.status(200).send("Webhook received");
   } catch (error) {
@@ -192,5 +203,20 @@ webhookRouter.post("/razorpay", bodyParser.json(), async (req, res) => {
     res.status(500).send("Server error");
   }
 });
+
+async function commonFunction(sub) {
+  const subscription = sub;
+  const userId = subscription.notes?.userId; // Assuming userId is stored in Razorpay notes
+
+  if (!userId) {
+    console.error("User ID not found in subscription notes");
+    return res.status(400).send("User ID not found");
+  }
+
+  // Updating the user in MongoDB
+  await Users.findByIdAndUpdate(userId, {
+    $set: { ...subscription },
+  });
+}
 
 export default webhookRouter;
